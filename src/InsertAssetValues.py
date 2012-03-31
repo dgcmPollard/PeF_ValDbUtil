@@ -67,7 +67,7 @@ if __name__ == '__main__':
     
 #    Parse arguments
     pars= ap.ArgumentParser(description="Load GASCI data from csv file to ValDb")
-    pars.add_argument('file',help='name of csv file in "dir" with GASCI price history')
+    pars.add_argument('file',help='name of csv file in "dir" with GASCI/TTSE price history')
     pars.add_argument('dir',nargs='?',default='/Users/dpollard2/Documents/Work/Pollards&Filles/Research/GASCI_Analysis/GASCI_Data/Jan2012/',
                       help='directory holding GASCI csv files with price histories')
     pars.add_argument('-db --dbase',dest='dbase',default='TestValDb',choices=['TestValDb','ValDb'],help='name of database')
