@@ -28,18 +28,22 @@ def connectMysql(dbname):
         return conn
 
 
-def getAssets():
-    '''Get list of assets and ids and return as dict'''
+def getAssets(dbname):
+    '''Get list of assets, ids, close times and timezones and return as dict'''
     
-    connA = connectMysql('TestValDb')
+    connA = connectMysql(dbname)
     asst = dict()
     csr = connA.cursor()
     try:
-        csr.execute("select ticker, assetID from asset order by ticker")
+#        csr.execute("select ticker, assetID from asset order by ticker")
+        csr.execute("""select a.ticker, a.assetID, a.close, e.timezone
+        from asset a, exchange e 
+        where a.exchangeID = e.exchangeID
+        order by a.ticker""")
 #        print "No. rows selected: %d" % csr.rowcount
         rows = csr.fetchall()
         for r in rows:
-            asst[r[0]] = int(r[1])
+            asst[r[0]] = (int(r[1]), r[2], r[3])
     except Exception, e:
         print "Error during asset list selection: %s" % e
     finally:
@@ -48,11 +52,16 @@ def getAssets():
         return asst
     
     
-def reformatDate( ddmmmyy):
-    ''' change date format from dd-mmm-yy to yyyy-mm-dd 12:00'''
+def reformatDate( ddmmmyy, hhmmss, tzone):
+    ''' change date format from dd-mmm-yy to yyyy-mm-dd hh:mm:ss converted to UTC'''
     import datetime
-    dt= datetime.datetime.strptime(ddmmmyy +' 12:00','%d-%b-%y %H:%M')
-    return dt.strftime('%Y-%m-%d %H:%M')
+    import pytz
+    dt= datetime.datetime.strptime(ddmmmyy + " " + hhmmss,'%d-%b-%y %H:%M:%S')
+#    utc = pytz.utc
+    locTZ = pytz.timezone(tzone)
+    locDT = locTZ.localize(dt)
+    utcDT = locDT.astimezone(pytz.utc)
+    return utcDT.strftime('%Y-%m-%d %H:%M')
 
 
 
@@ -68,12 +77,13 @@ if __name__ == '__main__':
 #    Parse arguments
     pars= ap.ArgumentParser(description="Load GASCI data from csv file to ValDb")
     pars.add_argument('file',help='name of csv file in "dir" with GASCI/TTSE price history')
-    pars.add_argument('dir',nargs='?',default='/Users/dpollard2/Documents/Work/Pollards&Filles/Research/GASCI_Analysis/GASCI_Data/Jan2012/',
+    pars.add_argument('dir',nargs='?',
+                      default='/Users/dpollard2/Documents/Work/Pollards&Filles/Research/GASCI_Analysis/GASCI_Data/Jan2012/',
                       help='directory holding GASCI csv files with price histories')
-    pars.add_argument('-db --dbase',dest='dbase',default='TestValDb',choices=['TestValDb','ValDb'],help='name of database')
+    pars.add_argument('-db --dbase',dest='dbase',default='TestValDb',choices=['TestValDb','PeFValDb'],help='name of database')
     args= pars.parse_args()
 
-    asst= getAssets()
+    asst= getAssets( args.dbase)
     
 #    check file available
     filename = args.dir + args.file
@@ -90,18 +100,23 @@ if __name__ == '__main__':
     with open(filename, 'rU') as f:
         try:
             reader = csv.DictReader(f,fieldnames=('Ticker','Session','Date','Price'))
+            numInserted= 0
             for row in reader:
                 if (reader.line_num > 1):
-                    sqlStmt= "insert into value (assetID, datetime, valueTypeID, value) values (%d, '%s', 1, %s)" % (asst[row['Ticker']], reformatDate(row['Date']), row['Price'])
-                    print sqlStmt
-                    csr.execute(sqlStmt)
+                    if (row['Price'].find('N/A') == -1):
+                        hhmmss = str( asst[row['Ticker']][1] )
+                        tzon = asst[row['Ticker']][2]
+                        sqlStmt= "insert into value (assetID, datetime, valueTypeID, value) values (%d, '%s', 1, %s)" % (asst[row['Ticker']][0], reformatDate(row['Date'],hhmmss,tzon), row['Price'])
+                        print sqlStmt
+                        csr.execute(sqlStmt)
+                        numInserted += 1
 #            print "Number of rows: %d" % (reader.line_num-1)
         except Exception, e:
             sys.exit('Exiting from data insertion...File %s, line %d, %s' % (filename, reader.line_num, e))
         finally:
             csr.close()
             conn.commit()
-            print "Number of rows added: %d" % (reader.line_num-1)
+            print "Number of rows added: %d" % (numInserted)
             f.close()
             
     
