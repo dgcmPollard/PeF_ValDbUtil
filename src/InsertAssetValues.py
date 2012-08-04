@@ -29,27 +29,47 @@ def connectMysql(dbname):
 
 
 def getAssets(dbname):
-    '''Get list of assets, ids, close times and timezones and return as dict'''
+    '''Get list of assets, ids, close times and timezones and return as dict
+    keyed on tuple (exchangeID, assetID) '''
     
     connA = connectMysql(dbname)
     asst = dict()
     csr = connA.cursor()
     try:
-#        csr.execute("select ticker, assetID from asset order by ticker")
-        csr.execute("""select a.ticker, a.assetID, a.close, e.timezone
+        csr.execute("""select e.exchangeID, a.ticker, a.assetID, a.close, e.timezone
         from asset a, exchange e 
         where a.exchangeID = e.exchangeID
-        order by a.ticker""")
+        order by e.exchangeID, a.ticker""")
 #        print "No. rows selected: %d" % csr.rowcount
         rows = csr.fetchall()
         for r in rows:
-            asst[r[0]] = (int(r[1]), r[2], r[3])
+            asst[(int(r[0]),r[1])] = (int(r[2]), r[3], r[4])
     except Exception, e:
         print "Error during asset list selection: %s" % e
     finally:
         csr.close()
 #        print "Asset dictionary: ", asst  #print dictionary
         return asst
+
+
+def getExchanges(dbname):
+    '''Get list of exchangeIDs return as dict keyed on exchange(name)'''
+    
+    connA = connectMysql(dbname)
+    exch = dict()
+    csr = connA.cursor()
+    try:
+        csr.execute("""select exchange, exchangeID from exchange order by exchangeID""")
+#        print "No. rows selected: %d" % csr.rowcount
+        rows = csr.fetchall()
+        for r in rows:
+            exch[r[0]] = int(r[1])
+    except Exception, e:
+        print "Error during exchange list selection: %s" % e
+    finally:
+        csr.close()
+#        print "Exchange dictionary: ", exch  #print dictionary
+        return exch
     
     
 def reformatDate( ddmmmyy, hhmmss, tzone):
@@ -75,15 +95,21 @@ if __name__ == '__main__':
     import argparse as ap
     
 #    Parse arguments
-    pars= ap.ArgumentParser(description="Load GASCI data from csv file to ValDb")
+    pars= ap.ArgumentParser(description="Load GASCI-formatted data from csv file to ValDb")
     pars.add_argument('file',help='name of csv file in "dir" with GASCI/TTSE price history')
     pars.add_argument('dir',nargs='?',
                       default='/Users/dpollard2/Documents/Work/Pollards&Filles/Research/GASCI_Analysis/GASCI_Data/Jan2012/',
                       help='directory holding GASCI csv files with price histories')
+    pars.add_argument('-ex --exchange',dest='exch',required=True,help='name of exchange e.g. GASCI')
     pars.add_argument('-db --dbase',dest='dbase',default='TestValDb',choices=['TestValDb','PeFValDb'],help='name of database')
     args= pars.parse_args()
 
-    asst= getAssets( args.dbase)
+    try:
+        asst= getAssets( args.dbase)
+        exchange = getExchanges( args.dbase)
+        exID = exchange[(args.exch).upper()]
+    except Exception, e:
+        sys.exit('Exiting %s...Problem with Assets or Exchanges; %s' % (sys.argv[0], e))
     
 #    check file available
     filename = args.dir + args.file
@@ -103,10 +129,10 @@ if __name__ == '__main__':
             numInserted= 0
             for row in reader:
                 if (reader.line_num > 1):
-                    if (row['Price'].find('N/A') == -1):
-                        hhmmss = str( asst[row['Ticker']][1] )
-                        tzon = asst[row['Ticker']][2]
-                        sqlStmt= "insert into value (assetID, datetime, valueTypeID, value) values (%d, '%s', 1, %s)" % (asst[row['Ticker']][0], reformatDate(row['Date'],hhmmss,tzon), row['Price'])
+                    if ((row['Price'].find('N/A') == -1) and (len(row['Price'])>0)):
+                        hhmmss = str( asst[(exID,row['Ticker'])][1] )
+                        tzon = asst[(exID,row['Ticker'])][2]
+                        sqlStmt= "insert into value (assetID, datetime, valueTypeID, value) values (%d, '%s', 1, %s)" % (asst[(exID,row['Ticker'])][0], reformatDate(row['Date'],hhmmss,tzon), row['Price'])
                         print sqlStmt
                         csr.execute(sqlStmt)
                         numInserted += 1
