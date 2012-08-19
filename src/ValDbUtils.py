@@ -9,7 +9,7 @@ Owned by Pollards Et Filles Ltd.
 
 def connectMysql(dbname):
     '''Make and return connection to Mysql dbase dbname '''
-    import sys
+#    import sys
     import MySQLdb
     
     try:
@@ -19,8 +19,8 @@ def connectMysql(dbname):
                                 user = "dpollard2",
                                 passwd = "connect2mysql")
     except Exception, e:
-        print "Cannot connect to server! %s. Exiting" % e
-        sys.exit()
+        print "Cannot connect to server! %s. Re-throwing" % e
+        raise
     else:
         print "Connected to %s" % dbname
         return conn
@@ -44,6 +44,7 @@ def getAssets(dbname):
             asst[(int(r[0]),r[1])] = (int(r[2]), r[3], r[4])
     except Exception, e:
         print "Error during asset list selection: %s" % e
+        raise
     finally:
         csr.close()
 #        print "Asset dictionary: ", asst  #print dictionary
@@ -71,7 +72,7 @@ def getExchanges(dbname):
     
     
 def reformatDate( ddmmmyy, hhmmss, tzone):
-    ''' change date format from dd-mmm-yy to yyyy-mm-dd hh:mm:ss converted to UTC'''
+    ''' change date format from dd-mmm-yy to yyyy-mm-dd hh:mm converted to UTC'''
     import datetime
     import pytz
     dt= datetime.datetime.strptime(ddmmmyy + " " + hhmmss,'%d-%b-%y %H:%M:%S')
