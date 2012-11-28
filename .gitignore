@@ -1,1 +1,2 @@
-# Nothing to ignore for now
+# Just one thing to ignore for now
+*.pyc
