@@ -14,3 +14,7 @@ These were used to back populate PeFValDb with prices since
 2003 for GASCI equities and 2006 for TTSE equities.
 Functionality will be added for web ripping of price data from
 the GASCI, TTSE and other web-sites for incremental addition to PeFValDb.
+
+Jun 2013:  Further web ripping work will not be done here
+instead Peter Lappo will use other repos in the PollardsEtFilles organisation
+for that and related work.
